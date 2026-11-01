@@ -1,0 +1,1261 @@
+version: 2.1
+
+jobs:
+  cacher_test:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: satin finish
+          command: |
+            mkdir -p /tmp/outbox
+            set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=1024 count=300 2>/dev/null | base64 > /tmp/outbox/ckpt-A.state; true
+            len=$(wc -c </tmp/outbox/ckpt-A.state); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - ckpt-A.state
+  test:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  drain_ed-run:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: more flaky
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; mktemp -u | md5sum; true ; } > /tmp/outbox/checkpoint-B.pt
+            len=$(wc -c </tmp/outbox/checkpoint-B.pt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - checkpoint-B.pt
+  ed-run:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/checkpoint-B.pt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  phase_canary:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: cobweb
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; cksum /etc/hostname; true ; } > /tmp/outbox/pt-D.state
+            len=$(wc -c </tmp/outbox/pt-D.state); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - pt-D.state
+  canary:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  round1_raj-test:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: heavy wash
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; printf "%s\n" quick brown fox lazy dog | awk '{print length($0), $0}' | sort -n; true ; } > /tmp/outbox/big_task_output.out
+            len=$(wc -c </tmp/outbox/big_task_output.out); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - big_task_output.out
+  raj-test:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  loader_ruby3-vet:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: burn in
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 1 13811 | awk '{s+=$1}END{print s}'; true ; } > /tmp/outbox/metrics.csv
+            len=$(wc -c </tmp/outbox/metrics.csv); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - metrics.csv
+  ruby3-vet:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/metrics.csv || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  maker_DEPLOY_STG:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: sketch
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; printf "x\ny\nz\n" | awk '{a[NR]=$0}END{for(i=NR;i>=1;i--)print a[i]}'; true ; } > /tmp/outbox/pt-main.pt
+            len=$(wc -c </tmp/outbox/pt-main.pt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - pt-main.pt
+  DEPLOY_STG:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/pt-main.pt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  canary1_rocket:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: flat check
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; echo $((16#deadbeef)); true ; } > /tmp/outbox/buffer.bin
+            len=$(wc -c </tmp/outbox/buffer.bin); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - buffer.bin
+  rocket:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  reserve_titan-rc:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: spin
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; ( echo "hdr"; seq 1 156990; echo "ftr" ) | wc -l; true ; } > /tmp/outbox/90.data
+            len=$(wc -c </tmp/outbox/90.data); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 90.data
+  titan-rc:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/90.data || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  preflight_full-send:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: pecan wood
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; echo "layered" | base64 | base64 | base64 | wc -c; true ; } > /tmp/outbox/handoff.ok
+            len=$(wc -c </tmp/outbox/handoff.ok); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - handoff.ok
+  full-send:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  vendor_Run_Pipeline1:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: pretty please
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 1 406502 | awk 'NR%20==0{sum+=$1}END{print sum}'; true ; } > /tmp/outbox/primary_task_output_v5.txt
+            len=$(wc -c </tmp/outbox/primary_task_output_v5.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - primary_task_output_v5.txt
+  Run_Pipeline1:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  verify_chore-1210:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: with the flow
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; yes abc | head -n 440446 | sha256sum; true ; } > /tmp/outbox/passoff.sig
+            len=$(wc -c </tmp/outbox/passoff.sig); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - passoff.sig
+  chore-1210:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  phase1_API-988:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: plate soft
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=1;i<=50;i++) printf "%c", 97+(i%26); print ""}'; true ; } > /tmp/outbox/2024-11-26.data
+            len=$(wc -c </tmp/outbox/2024-11-26.data); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 2024-11-26.data
+  API-988:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/2024-11-26.data || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  warmup_titan-v2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: sound barrier
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{a[1]=10;a[2]=20;a[3]=30; max=a[1]; for(k in a)if(a[k]>max)max=a[k]; print max}'; true ; } > /tmp/outbox/metrics.jsonl
+            len=$(wc -c </tmp/outbox/metrics.jsonl); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - metrics.jsonl
+  titan-v2:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/metrics.jsonl || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  A_brodcast-34:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: not yet
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; cksum /etc/hostname | awk '{print $1}'; true ; } > /tmp/outbox/577.data
+            len=$(wc -c </tmp/outbox/577.data); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 577.data
+  brodcast-34:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/577.data || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  cacher_ci-3:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: helmet off
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{a=1;b=1;for(i=0;i<30;i++){c=a+b;a=b;b=c}print c}'; true ; } > /tmp/outbox/stash.raw
+            len=$(wc -c </tmp/outbox/stash.raw); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - stash.raw
+  ci-3:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  A_zulu:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: tap dance
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 1 50 | xargs 2>/dev/null | wc -w; true ; } > /tmp/outbox/.pid
+            len=$(wc -c </tmp/outbox/.pid); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - .pid
+  zulu:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/.pid || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  fixture_refactor-7950:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: hill
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 100 1 2>/dev/null | head -3 || seq 1 100 | sort -nr | head -3; true ; } > /tmp/outbox/log.txt
+            len=$(wc -c </tmp/outbox/log.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - log.txt
+  refactor-7950:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/log.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  spinner_VERIFY_UAT:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: touch and go
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; echo "abc" | fold -w1 | sort | uniq | wc -l; true ; } > /tmp/outbox/.done
+            len=$(wc -c </tmp/outbox/.done); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - .done
+  VERIFY_UAT:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/.done || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  Delta_update-login:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: mostly red
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 1 50 | awk 'BEGIN{OFS=","}{row=row OFS $0}END{sub(/^,/,"",row); print row}' | wc -c; true ; } > /tmp/outbox/primary_job_output.log
+            len=$(wc -c </tmp/outbox/primary_job_output.log); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - primary_job_output.log
+  update-login:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/primary_job_output.log || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  green_rust-vet:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: quark soup
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{printf "%.6f\n", 3.14159 * 2.71828}'; true ; } > /tmp/outbox/FINAL.txt
+            len=$(wc -c </tmp/outbox/FINAL.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - FINAL.txt
+  rust-vet:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  B_juliet-1:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: oops
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; seq 2 100 | awk '{for(i=2;i*i<=$1;i++)if($1%i==0){next} print}' | tail -5; true ; } > /tmp/outbox/step-done.sig
+            len=$(wc -c </tmp/outbox/step-done.sig); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - step-done.sig
+  juliet-1:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/step-done.sig || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  cacher_mike-3:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: ice sheet
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; echo {a..z} | wc -w; true ; } > /tmp/outbox/635.txt
+            len=$(wc -c </tmp/outbox/635.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 635.txt
+  mike-3:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  canary_run-full-release-candidate:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: power cycle
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; printf "a\nb\nc\nd\ne\n" | nl 2>/dev/null | head -3 || printf "a\nb\nc\nd\ne\n" | awk '{print NR,$0}' | head -3; true ; } > /tmp/outbox/91.log
+            len=$(wc -c </tmp/outbox/91.log); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 91.log
+  run-full-release-candidate:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/91.log || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  reload_pat-build:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: lacrosse ball
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; printf "a\nb\nc\nd\ne\n" | nl 2>/dev/null | head -3 || printf "a\nb\nc\nd\ne\n" | awk '{print NR,$0}' | head -3; true ; } > /tmp/outbox/2024-07-13.data
+            len=$(wc -c </tmp/outbox/2024-07-13.data); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 2024-07-13.data
+  pat-build:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  Gamma_cook-it:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: strike flag
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; head -c 8M /dev/urandom | base64 | wc -c; true ; } > /tmp/outbox/full_phase_output_v2.txt
+            len=$(wc -c </tmp/outbox/full_phase_output_v2.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - full_phase_output_v2.txt
+  cook-it:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  blue_vb-v2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: fiddle
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=200 count=1 2>/dev/null | base64 | sort | md5sum; true ; } > /tmp/outbox/READY.txt
+            len=$(wc -c </tmp/outbox/READY.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - READY.txt
+  vb-v2:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/READY.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  step1_VerifyRelease:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: battery lint
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; basename /usr/local/bin/; true ; } > /tmp/outbox/manifest.tar
+            len=$(wc -c </tmp/outbox/manifest.tar); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - manifest.tar
+  VerifyRelease:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/manifest.tar || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  vendor_v9-alpha:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: peckish
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; cut -d: -f3 /etc/passwd | sort -n | tail -1; true ; } > /tmp/outbox/2024-11-03.data
+            len=$(wc -c </tmp/outbox/2024-11-03.data); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - 2024-11-03.data
+  v9-alpha:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/FINAL.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  auditor_q4-cleanup:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: primer base
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{print int(999999 ** 0.5)}'; true ; } > /tmp/outbox/handover.ok
+            len=$(wc -c </tmp/outbox/handover.ok); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - handover.ok
+  q4-cleanup:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/handover.ok || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+  prebuild_py310-test:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: k
+          command: |
+            mkdir -p /tmp/outbox
+            { set +o pipefail 2>/dev/null; echo "   leading" | sed 's/^ *//'; true ; } > /tmp/outbox/result.txt
+            len=$(wc -c </tmp/outbox/result.txt); echo "stage output written (${len} bytes)"
+      - persist_to_workspace:
+          root: /tmp/outbox
+          paths:
+            - result.txt
+  py310-test:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/outbox
+      - run:
+          name: Inherit stage
+          command: |
+            du -b /tmp/outbox/result.txt || true
+      - run:
+          name: Get project
+          command: git clone --depth 5 --single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME .
+      - run:
+          name: Prepare source archive
+          command: tar --extract --file=build-cache.tar
+      - run:
+          no_output_timeout: 85m
+          command: sh -c "./job"
+
+workflows:
+  workflow:
+    jobs:
+      - auditor_q4-cleanup
+      - q4-cleanup:
+          requires:
+            - auditor_q4-cleanup
+      - A_zulu:
+          requires:
+            - auditor_q4-cleanup
+      - zulu:
+          requires:
+            - A_zulu
+      - prebuild_py310-test:
+          requires:
+            - A_zulu
+      - py310-test:
+          requires:
+            - prebuild_py310-test
+      - warmup_titan-v2:
+          requires:
+            - prebuild_py310-test
+      - titan-v2:
+          requires:
+            - warmup_titan-v2
+      - phase1_API-988:
+          requires:
+            - warmup_titan-v2
+      - API-988:
+          requires:
+            - phase1_API-988
+      - Delta_update-login:
+          requires:
+            - phase1_API-988
+      - update-login:
+          requires:
+            - Delta_update-login
+      - reserve_titan-rc:
+          requires:
+            - Delta_update-login
+      - titan-rc:
+          requires:
+            - reserve_titan-rc
+      - drain_ed-run:
+          requires:
+            - reserve_titan-rc
+      - ed-run:
+          requires:
+            - drain_ed-run
+      - blue_vb-v2:
+          requires:
+            - drain_ed-run
+      - vb-v2:
+          requires:
+            - blue_vb-v2
+      - spinner_VERIFY_UAT:
+          requires:
+            - blue_vb-v2
+      - VERIFY_UAT:
+          requires:
+            - spinner_VERIFY_UAT
+      - A_brodcast-34:
+          requires:
+            - spinner_VERIFY_UAT
+      - brodcast-34:
+          requires:
+            - A_brodcast-34
+      - B_juliet-1:
+          requires:
+            - A_brodcast-34
+      - juliet-1:
+          requires:
+            - B_juliet-1
+      - loader_ruby3-vet:
+          requires:
+            - B_juliet-1
+      - ruby3-vet:
+          requires:
+            - loader_ruby3-vet
+      - maker_DEPLOY_STG:
+          requires:
+            - loader_ruby3-vet
+      - DEPLOY_STG:
+          requires:
+            - maker_DEPLOY_STG
+      - canary_run-full-release-candidate:
+          requires:
+            - maker_DEPLOY_STG
+      - run-full-release-candidate:
+          requires:
+            - canary_run-full-release-candidate
+      - step1_VerifyRelease:
+          requires:
+            - canary_run-full-release-candidate
+      - VerifyRelease:
+          requires:
+            - step1_VerifyRelease
+      - fixture_refactor-7950:
+          requires:
+            - step1_VerifyRelease
+      - refactor-7950:
+          requires:
+            - fixture_refactor-7950
+      - green_rust-vet
+      - Gamma_cook-it
+      - rust-vet:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - cook-it:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - ci-3:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - rocket:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - pat-build:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - full-send:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - Run_Pipeline1:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - test:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - chore-1210:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - raj-test:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - canary:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - mike-3:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
+      - v9-alpha:
+          requires:
+            - green_rust-vet
+            - Gamma_cook-it
